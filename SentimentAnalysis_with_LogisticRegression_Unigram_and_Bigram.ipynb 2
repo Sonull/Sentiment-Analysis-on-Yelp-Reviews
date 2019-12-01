@@ -1,0 +1,3029 @@
+{
+ "cells": [
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "\n",
+    "### OBJECTIVE : USING TEXT CLASSIFICATION AND LOGISTIC REGRESSION MODEL TO PREDICT  RATING ON YELP                            USING JUST REVIEWS\n",
+    "#### METHOD 1: UNIGRAM & BIGRAM\n",
+    "* Without removing stop words and without stemming\n",
+    "    * Binary\n",
+    "    * Counts\n",
+    "    * TFIDF\n",
+    "* Removing stop words and performing stemming\n",
+    "    * Binary\n",
+    "    * Counts\n",
+    "    * TFIDF"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "#### Author : Sonal Mendiratta"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 1,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "import pandas as pd\n",
+    "import numpy as np\n",
+    "from sklearn.model_selection import train_test_split\n",
+    "from sklearn.linear_model import LogisticRegression\n",
+    "from sklearn.feature_extraction.text import CountVectorizer,TfidfVectorizer\n",
+    "import logging"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 2,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "review_restaurant = pd.read_json(\"review_restaurant.json\")"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 3,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "sample_data = review_restaurant.sample(frac = 0.05,random_state=2000) "
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 4,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "def compute_accuracy(eval_items:list):\n",
+    "    correct=0\n",
+    "    total=0\n",
+    "    \n",
+    "    for item in eval_items:\n",
+    "        true_pred=item[0]\n",
+    "        machine_pred=set(item[1])\n",
+    "        \n",
+    "        for cat in true_pred:\n",
+    "            if cat in machine_pred:\n",
+    "                correct+=1\n",
+    "                break\n",
+    "    \n",
+    "    \n",
+    "    accuracy=correct/float(len(eval_items))\n",
+    "    return accuracy"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 5,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "def collect_preds(Y_test,Y_preds):\n",
+    "    \"\"\"Collect all predictions and ground truth\"\"\"\n",
+    "    \n",
+    "    pred_gold_list=[[[Y_test[idx]],pred] for idx,pred in enumerate(Y_preds)]\n",
+    "    return pred_gold_list"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 6,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "\n",
+    "\n",
+    "logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s', level=logging.INFO)\n",
+    "\n",
+    "def extract_features(df,field,training_data,testing_data,type=\"binary\"):\n",
+    "    \"\"\"Extract features using different methods\"\"\"\n",
+    "    \n",
+    "    logging.info(\"Extracting features and creating vocabulary...\")\n",
+    "    \n",
+    "    if \"binary\" in type:\n",
+    "        \n",
+    "        # BINARY FEATURE REPRESENTATION\n",
+    "        cv= CountVectorizer(binary=True, max_df=0.95,ngram_range=(1,2))\n",
+    "        cv.fit_transform(training_data[field].values)\n",
+    "        \n",
+    "        train_feature_set=cv.transform(training_data[field].values)\n",
+    "        test_feature_set=cv.transform(testing_data[field].values)\n",
+    "        \n",
+    "        return train_feature_set,test_feature_set,cv\n",
+    "  \n",
+    "    elif \"counts\" in type:\n",
+    "        \n",
+    "        # COUNT BASED FEATURE REPRESENTATION\n",
+    "        cv= CountVectorizer(binary=False, max_df=0.95,ngram_range=(1,2))\n",
+    "        cv.fit_transform(training_data[field].values)\n",
+    "        \n",
+    "        train_feature_set=cv.transform(training_data[field].values)\n",
+    "        test_feature_set=cv.transform(testing_data[field].values)\n",
+    "        \n",
+    "        return train_feature_set,test_feature_set,cv\n",
+    "    \n",
+    "    else:    \n",
+    "        \n",
+    "        # TF-IDF BASED FEATURE REPRESENTATION\n",
+    "        tfidf_vectorizer=TfidfVectorizer(use_idf=True, max_df=0.95,ngram_range=(1,2))\n",
+    "        tfidf_vectorizer.fit_transform(training_data[field].values)\n",
+    "        \n",
+    "        train_feature_set=tfidf_vectorizer.transform(training_data[field].values)\n",
+    "        test_feature_set=tfidf_vectorizer.transform(testing_data[field].values)\n",
+    "        \n",
+    "        return train_feature_set,test_feature_set,tfidf_vectorizer\n",
+    "\n"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 7,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "def get_top_k_predictions(model,X_test,k):\n",
+    "    \n",
+    "    # get probabilities instead of predicted labels, since we want to collect top 3\n",
+    "    probs = model.predict_proba(X_test)\n",
+    "\n",
+    "    # GET TOP K PREDICTIONS BY PROB - note these are just index\n",
+    "    best_n = np.argsort(probs, axis=1)[:,-k:]\n",
+    "    \n",
+    "    # GET CATEGORY OF PREDICTIONS\n",
+    "    preds=[[model.classes_[predicted_cat] for predicted_cat in prediction] for prediction in best_n]\n",
+    "    \n",
+    "    preds=[ item[::-1] for item in preds]\n",
+    "    \n",
+    "    return preds"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 8,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "def train_model(df,field,feature_rep,top_k):\n",
+    "    \n",
+    "    logging.info(\"Starting model training...\")\n",
+    "    \n",
+    "#     # GET A TRAIN TEST SPLIT (set seed for consistent results)\n",
+    "    training_data, testing_data = train_test_split(df,random_state = 2000,)\n",
+    "\n",
+    "    # GET LABELS\n",
+    "    Y_train=training_data['stars_reviews'].values\n",
+    "    Y_test=testing_data['stars_reviews'].values\n",
+    "     \n",
+    "    # GET FEATURES\n",
+    "    X_train,X_test,feature_transformer=extract_features(sample_data,field,training_data,testing_data,type=feature_rep)\n",
+    "\n",
+    "    # INIT LOGISTIC REGRESSION CLASSIFIER\n",
+    "    logging.info(\"Training a Logistic Regression Model...\")\n",
+    "    scikit_log_reg = LogisticRegression(verbose=1, solver='liblinear',random_state=0, C=5, penalty='l2',max_iter=1000)\n",
+    "    model=scikit_log_reg.fit(X_train,Y_train)\n",
+    "\n",
+    "    # Confusion Matrix -- To be run for k=2\n",
+    "    predicted_values = model.predict(X_test)\n",
+    "    matrix = pd.crosstab(Y_test,predicted_values)\n",
+    "    \n",
+    "    \n",
+    "    # GET TOP K PREDICTIONS\n",
+    "    preds=get_top_k_predictions(model,X_test,top_k)\n",
+    "    \n",
+    "    # GET PREDICTED VALUES AND GROUND TRUTH INTO A LIST OF LISTS - for ease of evaluation\n",
+    "    eval_items=collect_preds(Y_test,preds)\n",
+    "    \n",
+    "    # GET EVALUATION NUMBERS ON TEST SET -- HOW DID WE DO?\n",
+    "    logging.info(\"Starting evaluation...\")\n",
+    "    accuracy=compute_accuracy(eval_items)\n",
+    "    \n",
+    "    \n",
+    "    \n",
+    "    logging.info(\"Done training and evaluation.\")\n",
+    "    \n",
+    "    return model,feature_transformer,accuracy,matrix"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "# Without removing Stopwords and without performing Stemming "
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "## Binary"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "#### Accuracy based on top 1 prediction"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 10,
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      "2019-11-28 22:27:51,176 : INFO : Starting model training...\n",
+      "2019-11-28 22:27:51,640 : INFO : Extracting features and creating vocabulary...\n",
+      "2019-11-28 22:29:15,567 : INFO : Training a Logistic Regression Model...\n",
+      "/Users/sonal/anaconda3/lib/python3.7/site-packages/sklearn/linear_model/logistic.py:469: FutureWarning: Default multi_class will be changed to 'auto' in 0.22. Specify the multi_class option to silence this warning.\n",
+      "  \"this warning.\", FutureWarning)\n"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "[LibLinear]"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      "2019-11-28 23:17:03,785 : INFO : Starting evaluation...\n",
+      "2019-11-28 23:17:03,883 : INFO : Done training and evaluation.\n"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "\n",
+      "Accuracy=0.6155061784809885\n"
+     ]
+    }
+   ],
+   "source": [
+    "field='text'\n",
+    "feature_rep='binary'\n",
+    "top_k = 1\n",
+    "\n",
+    "\n",
+    "model,transformer,accuracy,matrix=train_model(sample_data,field=field,feature_rep=feature_rep,top_k=top_k)\n",
+    "print(\"\\nAccuracy={0}\".format(accuracy))"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 11,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/html": [
+       "<div>\n",
+       "<style scoped>\n",
+       "    .dataframe tbody tr th:only-of-type {\n",
+       "        vertical-align: middle;\n",
+       "    }\n",
+       "\n",
+       "    .dataframe tbody tr th {\n",
+       "        vertical-align: top;\n",
+       "    }\n",
+       "\n",
+       "    .dataframe thead th {\n",
+       "        text-align: right;\n",
+       "    }\n",
+       "</style>\n",
+       "<table border=\"1\" class=\"dataframe\">\n",
+       "  <thead>\n",
+       "    <tr style=\"text-align: right;\">\n",
+       "      <th>col_0</th>\n",
+       "      <th>1</th>\n",
+       "      <th>2</th>\n",
+       "      <th>3</th>\n",
+       "      <th>4</th>\n",
+       "      <th>5</th>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>row_0</th>\n",
+       "      <th></th>\n",
+       "      <th></th>\n",
+       "      <th></th>\n",
+       "      <th></th>\n",
+       "      <th></th>\n",
+       "    </tr>\n",
+       "  </thead>\n",
+       "  <tbody>\n",
+       "    <tr>\n",
+       "      <th>1</th>\n",
+       "      <td>4684</td>\n",
+       "      <td>918</td>\n",
+       "      <td>328</td>\n",
+       "      <td>151</td>\n",
+       "      <td>174</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>2</th>\n",
+       "      <td>1196</td>\n",
+       "      <td>1594</td>\n",
+       "      <td>1284</td>\n",
+       "      <td>487</td>\n",
+       "      <td>186</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>3</th>\n",
+       "      <td>379</td>\n",
+       "      <td>938</td>\n",
+       "      <td>2778</td>\n",
+       "      <td>2262</td>\n",
+       "      <td>681</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>4</th>\n",
+       "      <td>95</td>\n",
+       "      <td>209</td>\n",
+       "      <td>1376</td>\n",
+       "      <td>6589</td>\n",
+       "      <td>5397</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>5</th>\n",
+       "      <td>58</td>\n",
+       "      <td>41</td>\n",
+       "      <td>303</td>\n",
+       "      <td>3731</td>\n",
+       "      <td>16682</td>\n",
+       "    </tr>\n",
+       "  </tbody>\n",
+       "</table>\n",
+       "</div>"
+      ],
+      "text/plain": [
+       "col_0     1     2     3     4      5\n",
+       "row_0                               \n",
+       "1      4684   918   328   151    174\n",
+       "2      1196  1594  1284   487    186\n",
+       "3       379   938  2778  2262    681\n",
+       "4        95   209  1376  6589   5397\n",
+       "5        58    41   303  3731  16682"
+      ]
+     },
+     "execution_count": 11,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "#Confusion Matrix\n",
+    "matrix"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 12,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "[[1, 4]]"
+      ]
+     },
+     "execution_count": 12,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "test_features=transformer.transform([\"I did not like it!\"])\n",
+    "get_top_k_predictions(model,test_features,2)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 13,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "[[5, 4]]"
+      ]
+     },
+     "execution_count": 13,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "test_features=transformer.transform([\"I loved it so much\"])\n",
+    "get_top_k_predictions(model,test_features,2)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 14,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "[[5, 1]]"
+      ]
+     },
+     "execution_count": 14,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "test_features=transformer.transform([\"it sucked\"])\n",
+    "get_top_k_predictions(model,test_features,2)"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "#### Accuracy based on top 2 predictions"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 15,
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      "2019-11-28 23:17:10,788 : INFO : Starting model training...\n",
+      "2019-11-28 23:17:11,123 : INFO : Extracting features and creating vocabulary...\n",
+      "2019-11-28 23:23:12,064 : INFO : Training a Logistic Regression Model...\n",
+      "/Users/sonal/anaconda3/lib/python3.7/site-packages/sklearn/linear_model/logistic.py:469: FutureWarning: Default multi_class will be changed to 'auto' in 0.22. Specify the multi_class option to silence this warning.\n",
+      "  \"this warning.\", FutureWarning)\n"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "[LibLinear]"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      "2019-11-28 23:56:44,624 : INFO : Starting evaluation...\n",
+      "2019-11-28 23:56:44,744 : INFO : Done training and evaluation.\n"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "\n",
+      "Accuracy=0.8654442984710877\n"
+     ]
+    }
+   ],
+   "source": [
+    "field='text'\n",
+    "feature_rep='binary'\n",
+    "top_k = 2\n",
+    "\n",
+    "\n",
+    "model,transformer,accuracy,matrix=train_model(sample_data,field=field,feature_rep=feature_rep,top_k=top_k)\n",
+    "print(\"\\nAccuracy={0}\".format(accuracy))"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 16,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/html": [
+       "<div>\n",
+       "<style scoped>\n",
+       "    .dataframe tbody tr th:only-of-type {\n",
+       "        vertical-align: middle;\n",
+       "    }\n",
+       "\n",
+       "    .dataframe tbody tr th {\n",
+       "        vertical-align: top;\n",
+       "    }\n",
+       "\n",
+       "    .dataframe thead th {\n",
+       "        text-align: right;\n",
+       "    }\n",
+       "</style>\n",
+       "<table border=\"1\" class=\"dataframe\">\n",
+       "  <thead>\n",
+       "    <tr style=\"text-align: right;\">\n",
+       "      <th>col_0</th>\n",
+       "      <th>1</th>\n",
+       "      <th>2</th>\n",
+       "      <th>3</th>\n",
+       "      <th>4</th>\n",
+       "      <th>5</th>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>row_0</th>\n",
+       "      <th></th>\n",
+       "      <th></th>\n",
+       "      <th></th>\n",
+       "      <th></th>\n",
+       "      <th></th>\n",
+       "    </tr>\n",
+       "  </thead>\n",
+       "  <tbody>\n",
+       "    <tr>\n",
+       "      <th>1</th>\n",
+       "      <td>4684</td>\n",
+       "      <td>918</td>\n",
+       "      <td>328</td>\n",
+       "      <td>151</td>\n",
+       "      <td>174</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>2</th>\n",
+       "      <td>1196</td>\n",
+       "      <td>1594</td>\n",
+       "      <td>1284</td>\n",
+       "      <td>487</td>\n",
+       "      <td>186</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>3</th>\n",
+       "      <td>379</td>\n",
+       "      <td>938</td>\n",
+       "      <td>2778</td>\n",
+       "      <td>2262</td>\n",
+       "      <td>681</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>4</th>\n",
+       "      <td>95</td>\n",
+       "      <td>209</td>\n",
+       "      <td>1376</td>\n",
+       "      <td>6589</td>\n",
+       "      <td>5397</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>5</th>\n",
+       "      <td>58</td>\n",
+       "      <td>41</td>\n",
+       "      <td>303</td>\n",
+       "      <td>3731</td>\n",
+       "      <td>16682</td>\n",
+       "    </tr>\n",
+       "  </tbody>\n",
+       "</table>\n",
+       "</div>"
+      ],
+      "text/plain": [
+       "col_0     1     2     3     4      5\n",
+       "row_0                               \n",
+       "1      4684   918   328   151    174\n",
+       "2      1196  1594  1284   487    186\n",
+       "3       379   938  2778  2262    681\n",
+       "4        95   209  1376  6589   5397\n",
+       "5        58    41   303  3731  16682"
+      ]
+     },
+     "execution_count": 16,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "#Confusion Matrix\n",
+    "matrix"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 17,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "[[1, 4]]"
+      ]
+     },
+     "execution_count": 17,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "test_features=transformer.transform([\"I did not like it!\"])\n",
+    "get_top_k_predictions(model,test_features,2)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 18,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "[[5, 4]]"
+      ]
+     },
+     "execution_count": 18,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "test_features=transformer.transform([\"I loved it so much\"])\n",
+    "get_top_k_predictions(model,test_features,2)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 19,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "[[5, 1]]"
+      ]
+     },
+     "execution_count": 19,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "test_features=transformer.transform([\"it sucked\"])\n",
+    "get_top_k_predictions(model,test_features,2)"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "## Counts"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "#### Accuracy based on top 1 prediction"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 20,
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      "2019-11-28 23:56:45,556 : INFO : Starting model training...\n",
+      "2019-11-28 23:56:45,778 : INFO : Extracting features and creating vocabulary...\n",
+      "2019-11-28 23:58:21,202 : INFO : Training a Logistic Regression Model...\n",
+      "/Users/sonal/anaconda3/lib/python3.7/site-packages/sklearn/linear_model/logistic.py:469: FutureWarning: Default multi_class will be changed to 'auto' in 0.22. Specify the multi_class option to silence this warning.\n",
+      "  \"this warning.\", FutureWarning)\n"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "[LibLinear]"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      "2019-11-29 00:48:08,987 : INFO : Starting evaluation...\n",
+      "2019-11-29 00:48:09,063 : INFO : Done training and evaluation.\n"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "\n",
+      "Accuracy=0.616096418575427\n"
+     ]
+    }
+   ],
+   "source": [
+    "field='text'\n",
+    "feature_rep='counts'\n",
+    "top_k = 1\n",
+    "\n",
+    "model,transformer,accuracy,matrix=train_model(sample_data,field=field,feature_rep=feature_rep,top_k=top_k)\n",
+    "print(\"\\nAccuracy={0}\".format(accuracy))"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 21,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/html": [
+       "<div>\n",
+       "<style scoped>\n",
+       "    .dataframe tbody tr th:only-of-type {\n",
+       "        vertical-align: middle;\n",
+       "    }\n",
+       "\n",
+       "    .dataframe tbody tr th {\n",
+       "        vertical-align: top;\n",
+       "    }\n",
+       "\n",
+       "    .dataframe thead th {\n",
+       "        text-align: right;\n",
+       "    }\n",
+       "</style>\n",
+       "<table border=\"1\" class=\"dataframe\">\n",
+       "  <thead>\n",
+       "    <tr style=\"text-align: right;\">\n",
+       "      <th>col_0</th>\n",
+       "      <th>1</th>\n",
+       "      <th>2</th>\n",
+       "      <th>3</th>\n",
+       "      <th>4</th>\n",
+       "      <th>5</th>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>row_0</th>\n",
+       "      <th></th>\n",
+       "      <th></th>\n",
+       "      <th></th>\n",
+       "      <th></th>\n",
+       "      <th></th>\n",
+       "    </tr>\n",
+       "  </thead>\n",
+       "  <tbody>\n",
+       "    <tr>\n",
+       "      <th>1</th>\n",
+       "      <td>4651</td>\n",
+       "      <td>935</td>\n",
+       "      <td>329</td>\n",
+       "      <td>167</td>\n",
+       "      <td>173</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>2</th>\n",
+       "      <td>1223</td>\n",
+       "      <td>1613</td>\n",
+       "      <td>1279</td>\n",
+       "      <td>448</td>\n",
+       "      <td>184</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>3</th>\n",
+       "      <td>364</td>\n",
+       "      <td>969</td>\n",
+       "      <td>2798</td>\n",
+       "      <td>2245</td>\n",
+       "      <td>662</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>4</th>\n",
+       "      <td>95</td>\n",
+       "      <td>208</td>\n",
+       "      <td>1359</td>\n",
+       "      <td>6578</td>\n",
+       "      <td>5426</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>5</th>\n",
+       "      <td>52</td>\n",
+       "      <td>38</td>\n",
+       "      <td>281</td>\n",
+       "      <td>3726</td>\n",
+       "      <td>16718</td>\n",
+       "    </tr>\n",
+       "  </tbody>\n",
+       "</table>\n",
+       "</div>"
+      ],
+      "text/plain": [
+       "col_0     1     2     3     4      5\n",
+       "row_0                               \n",
+       "1      4651   935   329   167    173\n",
+       "2      1223  1613  1279   448    184\n",
+       "3       364   969  2798  2245    662\n",
+       "4        95   208  1359  6578   5426\n",
+       "5        52    38   281  3726  16718"
+      ]
+     },
+     "execution_count": 21,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "#Confusion Matrix\n",
+    "matrix"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 22,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "[[4, 5]]"
+      ]
+     },
+     "execution_count": 22,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "test_features=transformer.transform([\"I did not like it!\"])\n",
+    "get_top_k_predictions(model,test_features,2)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 23,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "[[5, 4]]"
+      ]
+     },
+     "execution_count": 23,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "test_features=transformer.transform([\"I loved it so much\"])\n",
+    "get_top_k_predictions(model,test_features,2)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 24,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "[[1, 5]]"
+      ]
+     },
+     "execution_count": 24,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "test_features=transformer.transform([\"it sucked\"])\n",
+    "get_top_k_predictions(model,test_features,2)"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "#### Accuracy based on top 2 predictions"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 25,
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      "2019-11-29 00:48:09,571 : INFO : Starting model training...\n",
+      "2019-11-29 00:48:09,756 : INFO : Extracting features and creating vocabulary...\n",
+      "2019-11-29 00:49:31,702 : INFO : Training a Logistic Regression Model...\n",
+      "/Users/sonal/anaconda3/lib/python3.7/site-packages/sklearn/linear_model/logistic.py:469: FutureWarning: Default multi_class will be changed to 'auto' in 0.22. Specify the multi_class option to silence this warning.\n",
+      "  \"this warning.\", FutureWarning)\n"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "[LibLinear]"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      "2019-11-29 02:54:33,680 : INFO : Starting evaluation...\n",
+      "2019-11-29 02:54:33,796 : INFO : Done training and evaluation.\n"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "\n",
+      "Accuracy=0.8667770986843358\n"
+     ]
+    }
+   ],
+   "source": [
+    "field='text'\n",
+    "feature_rep='counts'\n",
+    "top_k = 2\n",
+    "\n",
+    "model,transformer,accuracy,matrix=train_model(sample_data,field=field,feature_rep=feature_rep,top_k=top_k)\n",
+    "print(\"\\nAccuracy={0}\".format(accuracy))"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 26,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/html": [
+       "<div>\n",
+       "<style scoped>\n",
+       "    .dataframe tbody tr th:only-of-type {\n",
+       "        vertical-align: middle;\n",
+       "    }\n",
+       "\n",
+       "    .dataframe tbody tr th {\n",
+       "        vertical-align: top;\n",
+       "    }\n",
+       "\n",
+       "    .dataframe thead th {\n",
+       "        text-align: right;\n",
+       "    }\n",
+       "</style>\n",
+       "<table border=\"1\" class=\"dataframe\">\n",
+       "  <thead>\n",
+       "    <tr style=\"text-align: right;\">\n",
+       "      <th>col_0</th>\n",
+       "      <th>1</th>\n",
+       "      <th>2</th>\n",
+       "      <th>3</th>\n",
+       "      <th>4</th>\n",
+       "      <th>5</th>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>row_0</th>\n",
+       "      <th></th>\n",
+       "      <th></th>\n",
+       "      <th></th>\n",
+       "      <th></th>\n",
+       "      <th></th>\n",
+       "    </tr>\n",
+       "  </thead>\n",
+       "  <tbody>\n",
+       "    <tr>\n",
+       "      <th>1</th>\n",
+       "      <td>4651</td>\n",
+       "      <td>935</td>\n",
+       "      <td>329</td>\n",
+       "      <td>167</td>\n",
+       "      <td>173</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>2</th>\n",
+       "      <td>1223</td>\n",
+       "      <td>1613</td>\n",
+       "      <td>1279</td>\n",
+       "      <td>448</td>\n",
+       "      <td>184</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>3</th>\n",
+       "      <td>364</td>\n",
+       "      <td>969</td>\n",
+       "      <td>2798</td>\n",
+       "      <td>2245</td>\n",
+       "      <td>662</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>4</th>\n",
+       "      <td>95</td>\n",
+       "      <td>208</td>\n",
+       "      <td>1359</td>\n",
+       "      <td>6578</td>\n",
+       "      <td>5426</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>5</th>\n",
+       "      <td>52</td>\n",
+       "      <td>38</td>\n",
+       "      <td>281</td>\n",
+       "      <td>3726</td>\n",
+       "      <td>16718</td>\n",
+       "    </tr>\n",
+       "  </tbody>\n",
+       "</table>\n",
+       "</div>"
+      ],
+      "text/plain": [
+       "col_0     1     2     3     4      5\n",
+       "row_0                               \n",
+       "1      4651   935   329   167    173\n",
+       "2      1223  1613  1279   448    184\n",
+       "3       364   969  2798  2245    662\n",
+       "4        95   208  1359  6578   5426\n",
+       "5        52    38   281  3726  16718"
+      ]
+     },
+     "execution_count": 26,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "#Confusion Matrix\n",
+    "matrix"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 27,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "[[4, 5]]"
+      ]
+     },
+     "execution_count": 27,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "test_features=transformer.transform([\"I did not like it!\"])\n",
+    "get_top_k_predictions(model,test_features,2)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 28,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "[[5, 4]]"
+      ]
+     },
+     "execution_count": 28,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "test_features=transformer.transform([\"I loved it so much\"])\n",
+    "get_top_k_predictions(model,test_features,2)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 29,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "[[1, 5]]"
+      ]
+     },
+     "execution_count": 29,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "test_features=transformer.transform([\"it sucked\"])\n",
+    "get_top_k_predictions(model,test_features,2)"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "## TFIDF"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "#### Accuracy based on top 1 prediction"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 30,
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      "2019-11-29 02:54:34,422 : INFO : Starting model training...\n",
+      "2019-11-29 02:54:34,634 : INFO : Extracting features and creating vocabulary...\n",
+      "2019-11-29 02:56:27,661 : INFO : Training a Logistic Regression Model...\n",
+      "/Users/sonal/anaconda3/lib/python3.7/site-packages/sklearn/linear_model/logistic.py:469: FutureWarning: Default multi_class will be changed to 'auto' in 0.22. Specify the multi_class option to silence this warning.\n",
+      "  \"this warning.\", FutureWarning)\n"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "[LibLinear]"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      "2019-11-29 03:25:31,786 : INFO : Starting evaluation...\n",
+      "2019-11-29 03:25:31,896 : INFO : Done training and evaluation.\n"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "\n",
+      "Accuracy=0.6519868243178919\n"
+     ]
+    }
+   ],
+   "source": [
+    "field='text'\n",
+    "feature_rep='tfidf'\n",
+    "top_k = 1\n",
+    "\n",
+    "model,transformer,accuracy,matrix=train_model(sample_data,field=field,feature_rep=feature_rep,top_k=top_k)\n",
+    "print(\"\\nAccuracy={0}\".format(accuracy))"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 31,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/html": [
+       "<div>\n",
+       "<style scoped>\n",
+       "    .dataframe tbody tr th:only-of-type {\n",
+       "        vertical-align: middle;\n",
+       "    }\n",
+       "\n",
+       "    .dataframe tbody tr th {\n",
+       "        vertical-align: top;\n",
+       "    }\n",
+       "\n",
+       "    .dataframe thead th {\n",
+       "        text-align: right;\n",
+       "    }\n",
+       "</style>\n",
+       "<table border=\"1\" class=\"dataframe\">\n",
+       "  <thead>\n",
+       "    <tr style=\"text-align: right;\">\n",
+       "      <th>col_0</th>\n",
+       "      <th>1</th>\n",
+       "      <th>2</th>\n",
+       "      <th>3</th>\n",
+       "      <th>4</th>\n",
+       "      <th>5</th>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>row_0</th>\n",
+       "      <th></th>\n",
+       "      <th></th>\n",
+       "      <th></th>\n",
+       "      <th></th>\n",
+       "      <th></th>\n",
+       "    </tr>\n",
+       "  </thead>\n",
+       "  <tbody>\n",
+       "    <tr>\n",
+       "      <th>1</th>\n",
+       "      <td>4995</td>\n",
+       "      <td>746</td>\n",
+       "      <td>258</td>\n",
+       "      <td>99</td>\n",
+       "      <td>157</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>2</th>\n",
+       "      <td>1304</td>\n",
+       "      <td>1583</td>\n",
+       "      <td>1284</td>\n",
+       "      <td>401</td>\n",
+       "      <td>175</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>3</th>\n",
+       "      <td>380</td>\n",
+       "      <td>739</td>\n",
+       "      <td>2984</td>\n",
+       "      <td>2335</td>\n",
+       "      <td>600</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>4</th>\n",
+       "      <td>101</td>\n",
+       "      <td>87</td>\n",
+       "      <td>1019</td>\n",
+       "      <td>7097</td>\n",
+       "      <td>5362</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>5</th>\n",
+       "      <td>50</td>\n",
+       "      <td>12</td>\n",
+       "      <td>136</td>\n",
+       "      <td>3033</td>\n",
+       "      <td>17584</td>\n",
+       "    </tr>\n",
+       "  </tbody>\n",
+       "</table>\n",
+       "</div>"
+      ],
+      "text/plain": [
+       "col_0     1     2     3     4      5\n",
+       "row_0                               \n",
+       "1      4995   746   258    99    157\n",
+       "2      1304  1583  1284   401    175\n",
+       "3       380   739  2984  2335    600\n",
+       "4       101    87  1019  7097   5362\n",
+       "5        50    12   136  3033  17584"
+      ]
+     },
+     "execution_count": 31,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "#Confusion Matrix\n",
+    "matrix"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 32,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "[[2, 1]]"
+      ]
+     },
+     "execution_count": 32,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "test_features=transformer.transform([\"I did not like it!\"])\n",
+    "get_top_k_predictions(model,test_features,2)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 33,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "[[5, 4]]"
+      ]
+     },
+     "execution_count": 33,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "test_features=transformer.transform([\"I loved it so much\"])\n",
+    "get_top_k_predictions(model,test_features,2)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 34,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "[[1, 2]]"
+      ]
+     },
+     "execution_count": 34,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "test_features=transformer.transform([\"it sucked\"])\n",
+    "get_top_k_predictions(model,test_features,2)"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "#### Accuracy based on top 2 predictions"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 35,
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      "2019-11-29 03:25:32,566 : INFO : Starting model training...\n",
+      "2019-11-29 03:25:32,780 : INFO : Extracting features and creating vocabulary...\n",
+      "2019-11-29 03:27:38,999 : INFO : Training a Logistic Regression Model...\n",
+      "/Users/sonal/anaconda3/lib/python3.7/site-packages/sklearn/linear_model/logistic.py:469: FutureWarning: Default multi_class will be changed to 'auto' in 0.22. Specify the multi_class option to silence this warning.\n",
+      "  \"this warning.\", FutureWarning)\n"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "[LibLinear]"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      "2019-11-29 03:32:01,778 : INFO : Starting evaluation...\n",
+      "2019-11-29 03:32:01,894 : INFO : Done training and evaluation.\n"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "\n",
+      "Accuracy=0.9023628643780583\n"
+     ]
+    }
+   ],
+   "source": [
+    "field='text'\n",
+    "feature_rep='tfidf'\n",
+    "top_k = 2\n",
+    "\n",
+    "model,transformer,accuracy,matrix=train_model(sample_data,field=field,feature_rep=feature_rep,top_k=top_k)\n",
+    "print(\"\\nAccuracy={0}\".format(accuracy))"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 36,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/html": [
+       "<div>\n",
+       "<style scoped>\n",
+       "    .dataframe tbody tr th:only-of-type {\n",
+       "        vertical-align: middle;\n",
+       "    }\n",
+       "\n",
+       "    .dataframe tbody tr th {\n",
+       "        vertical-align: top;\n",
+       "    }\n",
+       "\n",
+       "    .dataframe thead th {\n",
+       "        text-align: right;\n",
+       "    }\n",
+       "</style>\n",
+       "<table border=\"1\" class=\"dataframe\">\n",
+       "  <thead>\n",
+       "    <tr style=\"text-align: right;\">\n",
+       "      <th>col_0</th>\n",
+       "      <th>1</th>\n",
+       "      <th>2</th>\n",
+       "      <th>3</th>\n",
+       "      <th>4</th>\n",
+       "      <th>5</th>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>row_0</th>\n",
+       "      <th></th>\n",
+       "      <th></th>\n",
+       "      <th></th>\n",
+       "      <th></th>\n",
+       "      <th></th>\n",
+       "    </tr>\n",
+       "  </thead>\n",
+       "  <tbody>\n",
+       "    <tr>\n",
+       "      <th>1</th>\n",
+       "      <td>4995</td>\n",
+       "      <td>746</td>\n",
+       "      <td>258</td>\n",
+       "      <td>99</td>\n",
+       "      <td>157</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>2</th>\n",
+       "      <td>1304</td>\n",
+       "      <td>1583</td>\n",
+       "      <td>1284</td>\n",
+       "      <td>401</td>\n",
+       "      <td>175</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>3</th>\n",
+       "      <td>380</td>\n",
+       "      <td>739</td>\n",
+       "      <td>2984</td>\n",
+       "      <td>2335</td>\n",
+       "      <td>600</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>4</th>\n",
+       "      <td>101</td>\n",
+       "      <td>87</td>\n",
+       "      <td>1019</td>\n",
+       "      <td>7097</td>\n",
+       "      <td>5362</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>5</th>\n",
+       "      <td>50</td>\n",
+       "      <td>12</td>\n",
+       "      <td>136</td>\n",
+       "      <td>3033</td>\n",
+       "      <td>17584</td>\n",
+       "    </tr>\n",
+       "  </tbody>\n",
+       "</table>\n",
+       "</div>"
+      ],
+      "text/plain": [
+       "col_0     1     2     3     4      5\n",
+       "row_0                               \n",
+       "1      4995   746   258    99    157\n",
+       "2      1304  1583  1284   401    175\n",
+       "3       380   739  2984  2335    600\n",
+       "4       101    87  1019  7097   5362\n",
+       "5        50    12   136  3033  17584"
+      ]
+     },
+     "execution_count": 36,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "#Confusion Matrix\n",
+    "matrix"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 37,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "[[2, 1]]"
+      ]
+     },
+     "execution_count": 37,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "test_features=transformer.transform([\"I did not like it!\"])\n",
+    "get_top_k_predictions(model,test_features,2)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 38,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "[[5, 4]]"
+      ]
+     },
+     "execution_count": 38,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "test_features=transformer.transform([\"I loved it so much\"])\n",
+    "get_top_k_predictions(model,test_features,2)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 39,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "[[1, 2]]"
+      ]
+     },
+     "execution_count": 39,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "test_features=transformer.transform([\"it sucked\"])\n",
+    "get_top_k_predictions(model,test_features,2)"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "# Removing Stop words and Performing Stemming "
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 40,
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      "[nltk_data] Downloading package stopwords to /Users/sonal/nltk_data...\n",
+      "[nltk_data]   Package stopwords is already up-to-date!\n"
+     ]
+    }
+   ],
+   "source": [
+    "import nltk\n",
+    "nltk.download('stopwords')\n",
+    "from nltk.corpus import stopwords\n",
+    "from nltk.stem import PorterStemmer\n",
+    "stop = stopwords.words('english')\n",
+    "ps = PorterStemmer()"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 41,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "sample_data['text1'] = sample_data['text'].apply(lambda x: ' '.join([ps.stem(word) for word in x.split() if word not in (stop)]))"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "## Binary"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "#### Accuracy based on top 1 prediction"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 42,
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      "2019-11-29 03:48:48,965 : INFO : Starting model training...\n",
+      "2019-11-29 03:48:49,716 : INFO : Extracting features and creating vocabulary...\n",
+      "2019-11-29 03:50:01,641 : INFO : Training a Logistic Regression Model...\n",
+      "/Users/sonal/anaconda3/lib/python3.7/site-packages/sklearn/linear_model/logistic.py:469: FutureWarning: Default multi_class will be changed to 'auto' in 0.22. Specify the multi_class option to silence this warning.\n",
+      "  \"this warning.\", FutureWarning)\n"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "[LibLinear]"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      "2019-11-29 04:15:42,147 : INFO : Starting evaluation...\n",
+      "2019-11-29 04:15:42,247 : INFO : Done training and evaluation.\n"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "\n",
+      "Accuracy=0.6139639382342301\n"
+     ]
+    }
+   ],
+   "source": [
+    "field='text1'\n",
+    "feature_rep='binary'\n",
+    "top_k = 1\n",
+    "\n",
+    "\n",
+    "model,transformer,accuracy,matrix=train_model(sample_data,field=field,feature_rep=feature_rep,top_k=top_k)\n",
+    "print(\"\\nAccuracy={0}\".format(accuracy))"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 43,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/html": [
+       "<div>\n",
+       "<style scoped>\n",
+       "    .dataframe tbody tr th:only-of-type {\n",
+       "        vertical-align: middle;\n",
+       "    }\n",
+       "\n",
+       "    .dataframe tbody tr th {\n",
+       "        vertical-align: top;\n",
+       "    }\n",
+       "\n",
+       "    .dataframe thead th {\n",
+       "        text-align: right;\n",
+       "    }\n",
+       "</style>\n",
+       "<table border=\"1\" class=\"dataframe\">\n",
+       "  <thead>\n",
+       "    <tr style=\"text-align: right;\">\n",
+       "      <th>col_0</th>\n",
+       "      <th>1</th>\n",
+       "      <th>2</th>\n",
+       "      <th>3</th>\n",
+       "      <th>4</th>\n",
+       "      <th>5</th>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>row_0</th>\n",
+       "      <th></th>\n",
+       "      <th></th>\n",
+       "      <th></th>\n",
+       "      <th></th>\n",
+       "      <th></th>\n",
+       "    </tr>\n",
+       "  </thead>\n",
+       "  <tbody>\n",
+       "    <tr>\n",
+       "      <th>1</th>\n",
+       "      <td>4677</td>\n",
+       "      <td>834</td>\n",
+       "      <td>325</td>\n",
+       "      <td>186</td>\n",
+       "      <td>233</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>2</th>\n",
+       "      <td>1237</td>\n",
+       "      <td>1477</td>\n",
+       "      <td>1228</td>\n",
+       "      <td>536</td>\n",
+       "      <td>269</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>3</th>\n",
+       "      <td>396</td>\n",
+       "      <td>829</td>\n",
+       "      <td>2649</td>\n",
+       "      <td>2395</td>\n",
+       "      <td>769</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>4</th>\n",
+       "      <td>131</td>\n",
+       "      <td>176</td>\n",
+       "      <td>1270</td>\n",
+       "      <td>6514</td>\n",
+       "      <td>5575</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>5</th>\n",
+       "      <td>74</td>\n",
+       "      <td>45</td>\n",
+       "      <td>233</td>\n",
+       "      <td>3534</td>\n",
+       "      <td>16929</td>\n",
+       "    </tr>\n",
+       "  </tbody>\n",
+       "</table>\n",
+       "</div>"
+      ],
+      "text/plain": [
+       "col_0     1     2     3     4      5\n",
+       "row_0                               \n",
+       "1      4677   834   325   186    233\n",
+       "2      1237  1477  1228   536    269\n",
+       "3       396   829  2649  2395    769\n",
+       "4       131   176  1270  6514   5575\n",
+       "5        74    45   233  3534  16929"
+      ]
+     },
+     "execution_count": 43,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "#Confusion Matrix\n",
+    "matrix"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 44,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "[[5, 4]]"
+      ]
+     },
+     "execution_count": 44,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "test_features=transformer.transform([\"I did not like it!\"])\n",
+    "get_top_k_predictions(model,test_features,2)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 45,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "[[5, 4]]"
+      ]
+     },
+     "execution_count": 45,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "test_features=transformer.transform([\"I loved it so much\"])\n",
+    "get_top_k_predictions(model,test_features,2)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 46,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "[[1, 5]]"
+      ]
+     },
+     "execution_count": 46,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "test_features=transformer.transform([\"it sucked\"])\n",
+    "get_top_k_predictions(model,test_features,2)"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "#### Accuracy based on top 2 predictions"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 47,
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      "2019-11-29 04:15:42,935 : INFO : Starting model training...\n",
+      "2019-11-29 04:15:43,156 : INFO : Extracting features and creating vocabulary...\n",
+      "2019-11-29 04:16:55,762 : INFO : Training a Logistic Regression Model...\n",
+      "/Users/sonal/anaconda3/lib/python3.7/site-packages/sklearn/linear_model/logistic.py:469: FutureWarning: Default multi_class will be changed to 'auto' in 0.22. Specify the multi_class option to silence this warning.\n",
+      "  \"this warning.\", FutureWarning)\n"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "[LibLinear]"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      "2019-11-29 04:51:20,148 : INFO : Starting evaluation...\n",
+      "2019-11-29 04:51:20,265 : INFO : Done training and evaluation.\n"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "\n",
+      "Accuracy=0.8638068582090973\n"
+     ]
+    }
+   ],
+   "source": [
+    "field='text1'\n",
+    "feature_rep='binary'\n",
+    "top_k = 2\n",
+    "\n",
+    "\n",
+    "model,transformer,accuracy,matrix=train_model(sample_data,field=field,feature_rep=feature_rep,top_k=top_k)\n",
+    "print(\"\\nAccuracy={0}\".format(accuracy))"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 48,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/html": [
+       "<div>\n",
+       "<style scoped>\n",
+       "    .dataframe tbody tr th:only-of-type {\n",
+       "        vertical-align: middle;\n",
+       "    }\n",
+       "\n",
+       "    .dataframe tbody tr th {\n",
+       "        vertical-align: top;\n",
+       "    }\n",
+       "\n",
+       "    .dataframe thead th {\n",
+       "        text-align: right;\n",
+       "    }\n",
+       "</style>\n",
+       "<table border=\"1\" class=\"dataframe\">\n",
+       "  <thead>\n",
+       "    <tr style=\"text-align: right;\">\n",
+       "      <th>col_0</th>\n",
+       "      <th>1</th>\n",
+       "      <th>2</th>\n",
+       "      <th>3</th>\n",
+       "      <th>4</th>\n",
+       "      <th>5</th>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>row_0</th>\n",
+       "      <th></th>\n",
+       "      <th></th>\n",
+       "      <th></th>\n",
+       "      <th></th>\n",
+       "      <th></th>\n",
+       "    </tr>\n",
+       "  </thead>\n",
+       "  <tbody>\n",
+       "    <tr>\n",
+       "      <th>1</th>\n",
+       "      <td>4677</td>\n",
+       "      <td>834</td>\n",
+       "      <td>325</td>\n",
+       "      <td>186</td>\n",
+       "      <td>233</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>2</th>\n",
+       "      <td>1237</td>\n",
+       "      <td>1477</td>\n",
+       "      <td>1228</td>\n",
+       "      <td>536</td>\n",
+       "      <td>269</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>3</th>\n",
+       "      <td>396</td>\n",
+       "      <td>829</td>\n",
+       "      <td>2649</td>\n",
+       "      <td>2395</td>\n",
+       "      <td>769</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>4</th>\n",
+       "      <td>131</td>\n",
+       "      <td>176</td>\n",
+       "      <td>1270</td>\n",
+       "      <td>6514</td>\n",
+       "      <td>5575</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>5</th>\n",
+       "      <td>74</td>\n",
+       "      <td>45</td>\n",
+       "      <td>233</td>\n",
+       "      <td>3534</td>\n",
+       "      <td>16929</td>\n",
+       "    </tr>\n",
+       "  </tbody>\n",
+       "</table>\n",
+       "</div>"
+      ],
+      "text/plain": [
+       "col_0     1     2     3     4      5\n",
+       "row_0                               \n",
+       "1      4677   834   325   186    233\n",
+       "2      1237  1477  1228   536    269\n",
+       "3       396   829  2649  2395    769\n",
+       "4       131   176  1270  6514   5575\n",
+       "5        74    45   233  3534  16929"
+      ]
+     },
+     "execution_count": 48,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "#Confusion Matrix\n",
+    "matrix"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 49,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "[[5, 4]]"
+      ]
+     },
+     "execution_count": 49,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "test_features=transformer.transform([\"I did not like it!\"])\n",
+    "get_top_k_predictions(model,test_features,2)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 50,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "[[5, 4]]"
+      ]
+     },
+     "execution_count": 50,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "test_features=transformer.transform([\"I loved it so much\"])\n",
+    "get_top_k_predictions(model,test_features,2)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 51,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "[[1, 5]]"
+      ]
+     },
+     "execution_count": 51,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "test_features=transformer.transform([\"it sucked\"])\n",
+    "get_top_k_predictions(model,test_features,2)"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "## Counts"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "#### Accuracy based on top 1 prediction"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 52,
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      "2019-11-29 04:51:21,076 : INFO : Starting model training...\n",
+      "2019-11-29 04:51:21,301 : INFO : Extracting features and creating vocabulary...\n",
+      "2019-11-29 04:52:33,728 : INFO : Training a Logistic Regression Model...\n",
+      "/Users/sonal/anaconda3/lib/python3.7/site-packages/sklearn/linear_model/logistic.py:469: FutureWarning: Default multi_class will be changed to 'auto' in 0.22. Specify the multi_class option to silence this warning.\n",
+      "  \"this warning.\", FutureWarning)\n"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "[LibLinear]"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      "2019-11-29 05:38:45,635 : INFO : Starting evaluation...\n",
+      "2019-11-29 05:38:45,743 : INFO : Done training and evaluation.\n"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "\n",
+      "Accuracy=0.6135260181641629\n"
+     ]
+    }
+   ],
+   "source": [
+    "field='text1'\n",
+    "feature_rep='counts'\n",
+    "top_k = 1\n",
+    "\n",
+    "model,transformer,accuracy,matrix=train_model(sample_data,field=field,feature_rep=feature_rep,top_k=top_k)\n",
+    "print(\"\\nAccuracy={0}\".format(accuracy))"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 53,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/html": [
+       "<div>\n",
+       "<style scoped>\n",
+       "    .dataframe tbody tr th:only-of-type {\n",
+       "        vertical-align: middle;\n",
+       "    }\n",
+       "\n",
+       "    .dataframe tbody tr th {\n",
+       "        vertical-align: top;\n",
+       "    }\n",
+       "\n",
+       "    .dataframe thead th {\n",
+       "        text-align: right;\n",
+       "    }\n",
+       "</style>\n",
+       "<table border=\"1\" class=\"dataframe\">\n",
+       "  <thead>\n",
+       "    <tr style=\"text-align: right;\">\n",
+       "      <th>col_0</th>\n",
+       "      <th>1</th>\n",
+       "      <th>2</th>\n",
+       "      <th>3</th>\n",
+       "      <th>4</th>\n",
+       "      <th>5</th>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>row_0</th>\n",
+       "      <th></th>\n",
+       "      <th></th>\n",
+       "      <th></th>\n",
+       "      <th></th>\n",
+       "      <th></th>\n",
+       "    </tr>\n",
+       "  </thead>\n",
+       "  <tbody>\n",
+       "    <tr>\n",
+       "      <th>1</th>\n",
+       "      <td>4663</td>\n",
+       "      <td>824</td>\n",
+       "      <td>331</td>\n",
+       "      <td>202</td>\n",
+       "      <td>235</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>2</th>\n",
+       "      <td>1242</td>\n",
+       "      <td>1499</td>\n",
+       "      <td>1217</td>\n",
+       "      <td>528</td>\n",
+       "      <td>261</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>3</th>\n",
+       "      <td>408</td>\n",
+       "      <td>839</td>\n",
+       "      <td>2596</td>\n",
+       "      <td>2408</td>\n",
+       "      <td>787</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>4</th>\n",
+       "      <td>124</td>\n",
+       "      <td>179</td>\n",
+       "      <td>1280</td>\n",
+       "      <td>6493</td>\n",
+       "      <td>5590</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>5</th>\n",
+       "      <td>70</td>\n",
+       "      <td>53</td>\n",
+       "      <td>262</td>\n",
+       "      <td>3458</td>\n",
+       "      <td>16972</td>\n",
+       "    </tr>\n",
+       "  </tbody>\n",
+       "</table>\n",
+       "</div>"
+      ],
+      "text/plain": [
+       "col_0     1     2     3     4      5\n",
+       "row_0                               \n",
+       "1      4663   824   331   202    235\n",
+       "2      1242  1499  1217   528    261\n",
+       "3       408   839  2596  2408    787\n",
+       "4       124   179  1280  6493   5590\n",
+       "5        70    53   262  3458  16972"
+      ]
+     },
+     "execution_count": 53,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "#Confusion Matrix\n",
+    "matrix"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 54,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "[[5, 4]]"
+      ]
+     },
+     "execution_count": 54,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "test_features=transformer.transform([\"I did not like it!\"])\n",
+    "get_top_k_predictions(model,test_features,2)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 55,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "[[5, 4]]"
+      ]
+     },
+     "execution_count": 55,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "test_features=transformer.transform([\"I loved it so much\"])\n",
+    "get_top_k_predictions(model,test_features,2)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 56,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "[[1, 5]]"
+      ]
+     },
+     "execution_count": 56,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "test_features=transformer.transform([\"it sucked\"])\n",
+    "get_top_k_predictions(model,test_features,2)"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "#### Accuracy based on top 2 predictions"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 57,
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      "2019-11-29 05:38:46,653 : INFO : Starting model training...\n",
+      "2019-11-29 05:38:46,873 : INFO : Extracting features and creating vocabulary...\n",
+      "2019-11-29 05:39:53,623 : INFO : Training a Logistic Regression Model...\n",
+      "/Users/sonal/anaconda3/lib/python3.7/site-packages/sklearn/linear_model/logistic.py:469: FutureWarning: Default multi_class will be changed to 'auto' in 0.22. Specify the multi_class option to silence this warning.\n",
+      "  \"this warning.\", FutureWarning)\n"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "[LibLinear]"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      "2019-11-29 06:18:27,311 : INFO : Starting evaluation...\n",
+      "2019-11-29 06:18:27,397 : INFO : Done training and evaluation.\n"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "\n",
+      "Accuracy=0.8640734182517469\n"
+     ]
+    }
+   ],
+   "source": [
+    "field='text1'\n",
+    "feature_rep='counts'\n",
+    "top_k = 2\n",
+    "\n",
+    "model,transformer,accuracy,matrix=train_model(sample_data,field=field,feature_rep=feature_rep,top_k=top_k)\n",
+    "print(\"\\nAccuracy={0}\".format(accuracy))"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 58,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/html": [
+       "<div>\n",
+       "<style scoped>\n",
+       "    .dataframe tbody tr th:only-of-type {\n",
+       "        vertical-align: middle;\n",
+       "    }\n",
+       "\n",
+       "    .dataframe tbody tr th {\n",
+       "        vertical-align: top;\n",
+       "    }\n",
+       "\n",
+       "    .dataframe thead th {\n",
+       "        text-align: right;\n",
+       "    }\n",
+       "</style>\n",
+       "<table border=\"1\" class=\"dataframe\">\n",
+       "  <thead>\n",
+       "    <tr style=\"text-align: right;\">\n",
+       "      <th>col_0</th>\n",
+       "      <th>1</th>\n",
+       "      <th>2</th>\n",
+       "      <th>3</th>\n",
+       "      <th>4</th>\n",
+       "      <th>5</th>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>row_0</th>\n",
+       "      <th></th>\n",
+       "      <th></th>\n",
+       "      <th></th>\n",
+       "      <th></th>\n",
+       "      <th></th>\n",
+       "    </tr>\n",
+       "  </thead>\n",
+       "  <tbody>\n",
+       "    <tr>\n",
+       "      <th>1</th>\n",
+       "      <td>4663</td>\n",
+       "      <td>824</td>\n",
+       "      <td>331</td>\n",
+       "      <td>202</td>\n",
+       "      <td>235</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>2</th>\n",
+       "      <td>1242</td>\n",
+       "      <td>1499</td>\n",
+       "      <td>1217</td>\n",
+       "      <td>528</td>\n",
+       "      <td>261</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>3</th>\n",
+       "      <td>408</td>\n",
+       "      <td>839</td>\n",
+       "      <td>2596</td>\n",
+       "      <td>2408</td>\n",
+       "      <td>787</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>4</th>\n",
+       "      <td>124</td>\n",
+       "      <td>179</td>\n",
+       "      <td>1280</td>\n",
+       "      <td>6493</td>\n",
+       "      <td>5590</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>5</th>\n",
+       "      <td>70</td>\n",
+       "      <td>53</td>\n",
+       "      <td>262</td>\n",
+       "      <td>3458</td>\n",
+       "      <td>16972</td>\n",
+       "    </tr>\n",
+       "  </tbody>\n",
+       "</table>\n",
+       "</div>"
+      ],
+      "text/plain": [
+       "col_0     1     2     3     4      5\n",
+       "row_0                               \n",
+       "1      4663   824   331   202    235\n",
+       "2      1242  1499  1217   528    261\n",
+       "3       408   839  2596  2408    787\n",
+       "4       124   179  1280  6493   5590\n",
+       "5        70    53   262  3458  16972"
+      ]
+     },
+     "execution_count": 58,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "#Confusion Matrix\n",
+    "matrix"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 59,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "[[5, 4]]"
+      ]
+     },
+     "execution_count": 59,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "test_features=transformer.transform([\"I did not like it!\"])\n",
+    "get_top_k_predictions(model,test_features,2)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 60,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "[[5, 4]]"
+      ]
+     },
+     "execution_count": 60,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "test_features=transformer.transform([\"I loved it so much\"])\n",
+    "get_top_k_predictions(model,test_features,2)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 61,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "[[1, 5]]"
+      ]
+     },
+     "execution_count": 61,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "test_features=transformer.transform([\"it sucked\"])\n",
+    "get_top_k_predictions(model,test_features,2)"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "## TFIDF\n"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "#### Accuracy based on top 1 prediction"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 62,
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      "2019-11-29 06:18:28,068 : INFO : Starting model training...\n",
+      "2019-11-29 06:18:28,264 : INFO : Extracting features and creating vocabulary...\n",
+      "2019-11-29 06:19:51,171 : INFO : Training a Logistic Regression Model...\n",
+      "/Users/sonal/anaconda3/lib/python3.7/site-packages/sklearn/linear_model/logistic.py:469: FutureWarning: Default multi_class will be changed to 'auto' in 0.22. Specify the multi_class option to silence this warning.\n",
+      "  \"this warning.\", FutureWarning)\n"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "[LibLinear]"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      "2019-11-29 06:22:36,587 : INFO : Starting evaluation...\n",
+      "2019-11-29 06:22:36,694 : INFO : Done training and evaluation.\n"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "\n",
+      "Accuracy=0.6386969021915043\n"
+     ]
+    }
+   ],
+   "source": [
+    "field='text1'\n",
+    "feature_rep='tfidf'\n",
+    "top_k = 1\n",
+    "\n",
+    "model,transformer,accuracy,matrix=train_model(sample_data,field=field,feature_rep=feature_rep,top_k=top_k)\n",
+    "print(\"\\nAccuracy={0}\".format(accuracy))"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 63,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/html": [
+       "<div>\n",
+       "<style scoped>\n",
+       "    .dataframe tbody tr th:only-of-type {\n",
+       "        vertical-align: middle;\n",
+       "    }\n",
+       "\n",
+       "    .dataframe tbody tr th {\n",
+       "        vertical-align: top;\n",
+       "    }\n",
+       "\n",
+       "    .dataframe thead th {\n",
+       "        text-align: right;\n",
+       "    }\n",
+       "</style>\n",
+       "<table border=\"1\" class=\"dataframe\">\n",
+       "  <thead>\n",
+       "    <tr style=\"text-align: right;\">\n",
+       "      <th>col_0</th>\n",
+       "      <th>1</th>\n",
+       "      <th>2</th>\n",
+       "      <th>3</th>\n",
+       "      <th>4</th>\n",
+       "      <th>5</th>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>row_0</th>\n",
+       "      <th></th>\n",
+       "      <th></th>\n",
+       "      <th></th>\n",
+       "      <th></th>\n",
+       "      <th></th>\n",
+       "    </tr>\n",
+       "  </thead>\n",
+       "  <tbody>\n",
+       "    <tr>\n",
+       "      <th>1</th>\n",
+       "      <td>4898</td>\n",
+       "      <td>733</td>\n",
+       "      <td>280</td>\n",
+       "      <td>147</td>\n",
+       "      <td>197</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>2</th>\n",
+       "      <td>1313</td>\n",
+       "      <td>1435</td>\n",
+       "      <td>1288</td>\n",
+       "      <td>477</td>\n",
+       "      <td>234</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>3</th>\n",
+       "      <td>433</td>\n",
+       "      <td>657</td>\n",
+       "      <td>2754</td>\n",
+       "      <td>2490</td>\n",
+       "      <td>704</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>4</th>\n",
+       "      <td>136</td>\n",
+       "      <td>99</td>\n",
+       "      <td>1001</td>\n",
+       "      <td>6919</td>\n",
+       "      <td>5511</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>5</th>\n",
+       "      <td>80</td>\n",
+       "      <td>26</td>\n",
+       "      <td>157</td>\n",
+       "      <td>3013</td>\n",
+       "      <td>17539</td>\n",
+       "    </tr>\n",
+       "  </tbody>\n",
+       "</table>\n",
+       "</div>"
+      ],
+      "text/plain": [
+       "col_0     1     2     3     4      5\n",
+       "row_0                               \n",
+       "1      4898   733   280   147    197\n",
+       "2      1313  1435  1288   477    234\n",
+       "3       433   657  2754  2490    704\n",
+       "4       136    99  1001  6919   5511\n",
+       "5        80    26   157  3013  17539"
+      ]
+     },
+     "execution_count": 63,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "#Confusion Matrix\n",
+    "matrix"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 64,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "[[4, 2]]"
+      ]
+     },
+     "execution_count": 64,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "test_features=transformer.transform([\"I did not like it!\"])\n",
+    "get_top_k_predictions(model,test_features,2)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 65,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "[[5, 3]]"
+      ]
+     },
+     "execution_count": 65,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "test_features=transformer.transform([\"I loved it so much\"])\n",
+    "get_top_k_predictions(model,test_features,2)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 66,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "[[1, 3]]"
+      ]
+     },
+     "execution_count": 66,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "test_features=transformer.transform([\"it sucked\"])\n",
+    "get_top_k_predictions(model,test_features,2)"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "#### Accuracy based on top 2 predictions"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 67,
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      "2019-11-29 06:22:37,674 : INFO : Starting model training...\n",
+      "2019-11-29 06:22:37,901 : INFO : Extracting features and creating vocabulary...\n",
+      "2019-11-29 06:25:55,531 : INFO : Training a Logistic Regression Model...\n",
+      "/Users/sonal/anaconda3/lib/python3.7/site-packages/sklearn/linear_model/logistic.py:469: FutureWarning: Default multi_class will be changed to 'auto' in 0.22. Specify the multi_class option to silence this warning.\n",
+      "  \"this warning.\", FutureWarning)\n"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "[LibLinear]"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      "2019-11-29 06:36:50,394 : INFO : Starting evaluation...\n",
+      "2019-11-29 06:36:50,519 : INFO : Done training and evaluation.\n"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "\n",
+      "Accuracy=0.8910150225624036\n"
+     ]
+    }
+   ],
+   "source": [
+    "field='text1'\n",
+    "feature_rep='tfidf'\n",
+    "top_k = 2\n",
+    "\n",
+    "model,transformer,accuracy,matrix=train_model(sample_data,field=field,feature_rep=feature_rep,top_k=top_k)\n",
+    "print(\"\\nAccuracy={0}\".format(accuracy))"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 68,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/html": [
+       "<div>\n",
+       "<style scoped>\n",
+       "    .dataframe tbody tr th:only-of-type {\n",
+       "        vertical-align: middle;\n",
+       "    }\n",
+       "\n",
+       "    .dataframe tbody tr th {\n",
+       "        vertical-align: top;\n",
+       "    }\n",
+       "\n",
+       "    .dataframe thead th {\n",
+       "        text-align: right;\n",
+       "    }\n",
+       "</style>\n",
+       "<table border=\"1\" class=\"dataframe\">\n",
+       "  <thead>\n",
+       "    <tr style=\"text-align: right;\">\n",
+       "      <th>col_0</th>\n",
+       "      <th>1</th>\n",
+       "      <th>2</th>\n",
+       "      <th>3</th>\n",
+       "      <th>4</th>\n",
+       "      <th>5</th>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>row_0</th>\n",
+       "      <th></th>\n",
+       "      <th></th>\n",
+       "      <th></th>\n",
+       "      <th></th>\n",
+       "      <th></th>\n",
+       "    </tr>\n",
+       "  </thead>\n",
+       "  <tbody>\n",
+       "    <tr>\n",
+       "      <th>1</th>\n",
+       "      <td>4898</td>\n",
+       "      <td>733</td>\n",
+       "      <td>280</td>\n",
+       "      <td>147</td>\n",
+       "      <td>197</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>2</th>\n",
+       "      <td>1313</td>\n",
+       "      <td>1435</td>\n",
+       "      <td>1288</td>\n",
+       "      <td>477</td>\n",
+       "      <td>234</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>3</th>\n",
+       "      <td>433</td>\n",
+       "      <td>657</td>\n",
+       "      <td>2754</td>\n",
+       "      <td>2490</td>\n",
+       "      <td>704</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>4</th>\n",
+       "      <td>136</td>\n",
+       "      <td>99</td>\n",
+       "      <td>1001</td>\n",
+       "      <td>6919</td>\n",
+       "      <td>5511</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>5</th>\n",
+       "      <td>80</td>\n",
+       "      <td>26</td>\n",
+       "      <td>157</td>\n",
+       "      <td>3013</td>\n",
+       "      <td>17539</td>\n",
+       "    </tr>\n",
+       "  </tbody>\n",
+       "</table>\n",
+       "</div>"
+      ],
+      "text/plain": [
+       "col_0     1     2     3     4      5\n",
+       "row_0                               \n",
+       "1      4898   733   280   147    197\n",
+       "2      1313  1435  1288   477    234\n",
+       "3       433   657  2754  2490    704\n",
+       "4       136    99  1001  6919   5511\n",
+       "5        80    26   157  3013  17539"
+      ]
+     },
+     "execution_count": 68,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "#Confusion Matrix\n",
+    "matrix"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 69,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "[[4, 2]]"
+      ]
+     },
+     "execution_count": 69,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "test_features=transformer.transform([\"I did not like it!\"])\n",
+    "get_top_k_predictions(model,test_features,2)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 70,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "[[5, 3]]"
+      ]
+     },
+     "execution_count": 70,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "test_features=transformer.transform([\"I loved it so much\"])\n",
+    "get_top_k_predictions(model,test_features,2)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 71,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "[[1, 3]]"
+      ]
+     },
+     "execution_count": 71,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "test_features=transformer.transform([\"it sucked\"])\n",
+    "get_top_k_predictions(model,test_features,2)"
+   ]
+  }
+ ],
+ "metadata": {
+  "kernelspec": {
+   "display_name": "Python 3",
+   "language": "python",
+   "name": "python3"
+  },
+  "language_info": {
+   "codemirror_mode": {
+    "name": "ipython",
+    "version": 3
+   },
+   "file_extension": ".py",
+   "mimetype": "text/x-python",
+   "name": "python",
+   "nbconvert_exporter": "python",
+   "pygments_lexer": "ipython3",
+   "version": "3.7.3"
+  }
+ },
+ "nbformat": 4,
+ "nbformat_minor": 2
+}
