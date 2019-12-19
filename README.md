@@ -46,10 +46,24 @@ The model predicts the correct rating in the first spot. Moreover, the predictio
 ![pic6](https://github.com/Sonull/Sentiment-Analysis-on-Yelp-Reviews/blob/master/Pictures/pic6.png)
 
 # Learnings
+•	TFIDF based weighting performs better than Binary & Count based schemes
+•	There is no significant difference in Counts based weighting and Binary weighting
+•	 N gram sequence is simply a method to add more features and context matters
+•	Accuracy is not the only benchmark to assess the performance of a model
+•	We should remove stop words and perform stemming as we don’t want unnecessary weights to be given to words that are not important and overfit the model
+•	The richer the text field, the better the overall performance of the classifier
+•	Businesses can use this methodology to predict rating in real-time and undertake relevant actions to improve customer service
 
 # Demo
 
 # Appendix
+![pic7](https://github.com/Sonull/Sentiment-Analysis-on-Yelp-Reviews/blob/master/Pictures/pic7.png)
+
+![pic8](https://github.com/Sonull/Sentiment-Analysis-on-Yelp-Reviews/blob/master/Pictures/pic8.png)
+
+![pic9](https://github.com/Sonull/Sentiment-Analysis-on-Yelp-Reviews/blob/master/Pictures/pic9.png)
+
+![pic10](https://github.com/Sonull/Sentiment-Analysis-on-Yelp-Reviews/blob/master/Pictures/pic10.png)
 
 # Source of data
 https://www.yelp.com/dataset
