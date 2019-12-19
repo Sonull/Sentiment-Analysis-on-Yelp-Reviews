@@ -45,5 +45,11 @@ The model does not predict the correct rating in either of the two spots. Both t
 The model predicts the correct rating in the first spot. Moreover, the prediction in the second spot also makes logical sense. 
 ![pic6](https://github.com/Sonull/Sentiment-Analysis-on-Yelp-Reviews/blob/master/Pictures/pic6.png)
 
+# Learnings
+
+# Demo
+
+# Appendix
+
 # Source of data
 https://www.yelp.com/dataset
