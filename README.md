@@ -65,5 +65,7 @@ The model predicts the correct rating in the first spot. Moreover, the predictio
 
 ![pic10](https://github.com/Sonull/Sentiment-Analysis-on-Yelp-Reviews/blob/master/Pictures/pic10.png)
 
+![pic11](https://github.com/Sonull/Sentiment-Analysis-on-Yelp-Reviews/blob/master/Pictures/pic11.png)
+
 # Source of data
 https://www.yelp.com/dataset
