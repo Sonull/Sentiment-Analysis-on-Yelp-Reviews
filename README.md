@@ -33,7 +33,7 @@ Once the model was built on training data, we used it to predict ratings on test
 2. Top 2 predictions defined as
 ![pic2](https://github.com/Sonull/Sentiment-Analysis-on-Yelp-Reviews/blob/master/Pictures/pic2.png)
 
-#Validation on new text
+# Validation on new text
 In addition to predicting ratings using these models on the testing data, we also tested them on new texts to compare the predicted ratings. The following were the results obtained from thethree models which were built after removal of stop words and performing stemming and using features in unigram sequence
 
 The model does not predict the correct rating in the first spot but makes the right prediction in the second spot. Interestingly, the top two predictions made by this model are in the opposite ends of the rating scale.
@@ -46,13 +46,13 @@ The model predicts the correct rating in the first spot. Moreover, the predictio
 ![pic6](https://github.com/Sonull/Sentiment-Analysis-on-Yelp-Reviews/blob/master/Pictures/pic6.png)
 
 # Learnings
-•	TFIDF based weighting performs better than Binary & Count based schemes
-•	There is no significant difference in Counts based weighting and Binary weighting
-•	 N gram sequence is simply a method to add more features and context matters
-•	Accuracy is not the only benchmark to assess the performance of a model
-•	We should remove stop words and perform stemming as we don’t want unnecessary weights to be given to words that are not important and overfit the model
-•	The richer the text field, the better the overall performance of the classifier
-•	Businesses can use this methodology to predict rating in real-time and undertake relevant actions to improve customer service
+*	TFIDF based weighting performs better than Binary & Count based schemes
+*	There is no significant difference in Counts based weighting and Binary weighting
+*	N gram sequence is simply a method to add more features and context matters
+*	Accuracy is not the only benchmark to assess the performance of a model
+*	We should remove stop words and perform stemming as we don’t want unnecessary weights to be given to words that are not important and overfit the model
+*	The richer the text field, the better the overall performance of the classifier
+*	Businesses can use this methodology to predict rating in real-time and undertake relevant actions to improve customer service
 
 # Demo
 One practical application of Sentiment Analysis would be real-time prediction of rating when a customer is adding his/her review. This way if a low rating gets predicted, the restaurant can immediately offer some assistance to improve the customer experience. An action would be taken even before the review gets published.
