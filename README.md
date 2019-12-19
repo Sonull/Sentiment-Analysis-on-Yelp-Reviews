@@ -23,7 +23,8 @@ sequences:
 A 5% sample (~200K records) was selected from the population using Simple Random Sampling without Replacement. The data was divided into 75% Training data and 25% Testing data. A logistic regression model was then built using these features as the independent variables. The dependent variable that we were trying to predict was the column ‘rating’ which takes the values 1 through 5 on yelp. And thus, this was a multi-classification exercise.
 
 Overall 12 Logistic regression models were built, and the corresponding results were analyzed. (Exhibit 8)
-![pic1](https://github.com/Sonull/Sentiment-Analysis-on-Yelp-Reviews/blob/master/Pictures/pic1.png)
+![pic3](https://github.com/Sonull/Sentiment-Analysis-on-Yelp-Reviews/blob/master/Pictures/pic3.png)
+
 
 # Evaluation
 Once the model was built on training data, we used it to predict ratings on testing data. In order to evaluate the performance, we calculated the accuracy in two methods:
@@ -36,7 +37,7 @@ Once the model was built on training data, we used it to predict ratings on test
 In addition to predicting ratings using these models on the testing data, we also tested them on new texts to compare the predicted ratings. The following were the results obtained from thethree models which were built after removal of stop words and performing stemming and using features in unigram sequence
 
 The model does not predict the correct rating in the first spot but makes the right prediction in the second spot. Interestingly, the top two predictions made by this model are in the opposite ends of the rating scale.
-![pic3](https://github.com/Sonull/Sentiment-Analysis-on-Yelp-Reviews/blob/master/Pictures/pic3.png)
+
 
 The model does not predict the correct rating in either of the two spots. Both the predictions are on the higher end of the rating scale while the text ideally belongs in the lower end.
 ![pic4](https://github.com/Sonull/Sentiment-Analysis-on-Yelp-Reviews/blob/master/Pictures/pic4.png)
