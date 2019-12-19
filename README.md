@@ -27,7 +27,7 @@ Overall 12 Logistic regression models were built, and the corresponding results 
 # Evaluation
 Once the model was built on training data, we used it to predict ratings on testing data. In order to evaluate the performance, we calculated the accuracy in two methods:
 1. Top 1 prediction defined as
-Number of times the correct prediction of rating was made
+Number of times the correct prediction of rating was made 
 Total number of predictions
 2. Top 2 predictions defined as
 Number of times the correct rating occurred in top 2 predictions for a review Total number of predictions
