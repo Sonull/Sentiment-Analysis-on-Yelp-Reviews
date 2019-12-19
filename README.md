@@ -55,6 +55,21 @@ The model predicts the correct rating in the first spot. Moreover, the predictio
 •	Businesses can use this methodology to predict rating in real-time and undertake relevant actions to improve customer service
 
 # Demo
+One practical application of Sentiment Analysis would be real-time prediction of rating when a customer is adding his/her review. This way if a low rating gets predicted, the restaurant can immediately offer some assistance to improve the customer experience. An action would be taken even before the review gets published.
+
+I built a prototype of this application to demonstrate this idea. The message pops up while the customer is typing a review. 
+
+* The main page of the prototype:
+![pic12](https://github.com/Sonull/Sentiment-Analysis-on-Yelp-Reviews/blob/master/Pictures/pic12.png)
+
+* A dialog box pops up even before the user has finished writing the review. Since the model predicted that the rating of this particular review is going to be low and thus this is a negative review, the resultant message asks whether the user would like to talk to the customer representative.
+![pic13](https://github.com/Sonull/Sentiment-Analysis-on-Yelp-Reviews/blob/master/Pictures/pic13.png)
+
+* Since the following sentence is a positive review the tool simply shares a more light hearted message. Notice that even here the message is shown before the text is complete.
+![pic14](https://github.com/Sonull/Sentiment-Analysis-on-Yelp-Reviews/blob/master/Pictures/pic14.png)
+
+* In terms of operations in the backend, this is how the mechanism looks like. While the customer is typing a review, the server sends a prediction request to the model which in turn sends a predicted customer rating as an output. On the basis of different values of the ratings, different kinds of messages get displayed to the user. The core idea being real time prediction and action.
+![pic15](https://github.com/Sonull/Sentiment-Analysis-on-Yelp-Reviews/blob/master/Pictures/pic15.png)
 
 # Appendix
 ![pic7](https://github.com/Sonull/Sentiment-Analysis-on-Yelp-Reviews/blob/master/Pictures/pic7.png)
@@ -69,3 +84,4 @@ The model predicts the correct rating in the first spot. Moreover, the predictio
 
 # Source of data
 https://www.yelp.com/dataset
+
