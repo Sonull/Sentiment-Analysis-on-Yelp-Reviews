@@ -23,6 +23,7 @@ sequences:
 A 5% sample (~200K records) was selected from the population using Simple Random Sampling without Replacement. The data was divided into 75% Training data and 25% Testing data. A logistic regression model was then built using these features as the independent variables. The dependent variable that we were trying to predict was the column ‘rating’ which takes the values 1 through 5 on yelp. And thus, this was a multi-classification exercise.
 
 Overall 12 Logistic regression models were built, and the corresponding results were analyzed. (Exhibit 8)
+![pic1](https://github.com/Sonull/Sentiment-Analysis-on-Yelp-Reviews/blob/master/Pictures/pic1.png)
 
 # Evaluation
 Once the model was built on training data, we used it to predict ratings on testing data. In order to evaluate the performance, we calculated the accuracy in two methods:
