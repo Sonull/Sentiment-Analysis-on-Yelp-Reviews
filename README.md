@@ -37,13 +37,13 @@ Once the model was built on training data, we used it to predict ratings on test
 In addition to predicting ratings using these models on the testing data, we also tested them on new texts to compare the predicted ratings. The following were the results obtained from thethree models which were built after removal of stop words and performing stemming and using features in unigram sequence
 
 The model does not predict the correct rating in the first spot but makes the right prediction in the second spot. Interestingly, the top two predictions made by this model are in the opposite ends of the rating scale.
-
-
-The model does not predict the correct rating in either of the two spots. Both the predictions are on the higher end of the rating scale while the text ideally belongs in the lower end.
 ![pic4](https://github.com/Sonull/Sentiment-Analysis-on-Yelp-Reviews/blob/master/Pictures/pic4.png)
 
-The model predicts the correct rating in the first spot. Moreover, the prediction in the second spot also makes logical sense. 
+The model does not predict the correct rating in either of the two spots. Both the predictions are on the higher end of the rating scale while the text ideally belongs in the lower end.
 ![pic5](https://github.com/Sonull/Sentiment-Analysis-on-Yelp-Reviews/blob/master/Pictures/pic5.png)
+
+The model predicts the correct rating in the first spot. Moreover, the prediction in the second spot also makes logical sense. 
+![pic6](https://github.com/Sonull/Sentiment-Analysis-on-Yelp-Reviews/blob/master/Pictures/pic6.png)
 
 # Source of data
 https://www.yelp.com/dataset
