@@ -1,6 +1,11 @@
-# Sentiment-Analysis-on-Yelp-Reviews
+# Sentiment Analysis on Yelp Reviews 
 Building a text classifier using Logistic Regression model and predicting the rating on Yelp
 
+# Note
+This file summarizes the results obtained by building Logistic Regression model. Further details around the project related to Sentiment Analysis done using NLTK packages, Random Forest as well as SVM can be obtained through the following documents:
+ * Project Presentation
+ * Project Report
+ 
 # Inspiration
 A negative review, especially from an elite user can result in lost opportunity for a business. Businesses usually respond to negative reviews after a certain time but by then the damage is already done. This problem can be solved by performing real time prediction of rating while customer is typing the review so that action can be undertaken even before the review is live! This will significantly improve customer service and reduce the risk of losing customers.
 
